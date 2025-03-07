@@ -5,8 +5,8 @@ import HackathonCard from "../components/HackathonCard";
 import ToggleSwitch from "../components/ToggleSwitch";
 import MapView from "../components/MapView";
 import { DevfolioResponse, HackathonData, HackathonFilters } from "../types/hackathon";
-import { fetchHackathons, filterHackathons } from "../services/hackathonService";
-import { FilterIcon, RefreshCw } from "lucide-react";
+import { fetchHackathons, filterHackathons, DEFAULT_FILTERS } from "../services/hackathonService";
+import { FilterIcon, RefreshCw, CalendarIcon, MapPinIcon, UsersIcon, AwardIcon, TagIcon } from "lucide-react";
 
 const HackathonListingPage = () => {
   const location = useLocation();
@@ -21,12 +21,7 @@ const HackathonListingPage = () => {
   
   // Initialize filters from location state or with defaults
   const [filters, setFilters] = useState<HackathonFilters>(
-    location.state?.filters || {
-      searchTerm: '',
-      location: 'any',
-      dateRange: 'any',
-      technologies: []
-    }
+    location.state?.filters || DEFAULT_FILTERS
   );
 
   // Update filters when location state changes
@@ -43,7 +38,7 @@ const HackathonListingPage = () => {
       setIsLoading(true);
       setError(null);
       
-      const response = await fetchHackathons(filters, page * 10, 10);
+      const response = await fetchHackathons(filters, page * filters.pageSize, filters.pageSize);
       
       // Check if we got mock data due to API failure
       if (response.hits.hits.length > 0 && response.hits.hits[0]._source.uuid.startsWith('mock-')) {
@@ -61,7 +56,7 @@ const HackathonListingPage = () => {
         ]);
       }
       
-      setHasMore(response.hits.hits.length === 10);
+      setHasMore(response.hits.hits.length === filters.pageSize);
     } catch (err) {
       console.error('Error fetching hackathons:', err);
       setError('Failed to fetch hackathons from the API. This may be due to CORS restrictions or network issues.');
@@ -128,7 +123,132 @@ const HackathonListingPage = () => {
     filters.searchTerm !== '' || 
     filters.location !== 'any' || 
     filters.dateRange !== 'any' || 
-    filters.technologies.length > 0;
+    filters.technologies.length > 0 ||
+    filters.country !== null ||
+    filters.state !== null ||
+    filters.city !== null ||
+    filters.eventType !== null ||
+    filters.startDate !== null ||
+    filters.endDate !== null ||
+    filters.teamSizeMin !== null ||
+    filters.teamSizeMax !== null ||
+    filters.participationMode !== null ||
+    filters.prizeFilter !== null ||
+    (filters.themeFilter !== null && filters.themeFilter.length > 0) ||
+    filters.registrationStatus !== 'any';
+
+  // Count active filter categories
+  const countActiveFilterCategories = () => {
+    let count = 0;
+    
+    // Basic filters
+    if (filters.location !== 'any') count++;
+    if (filters.dateRange !== 'any') count++;
+    if (filters.technologies.length > 0) count++;
+    
+    // Advanced location filters
+    if (filters.country !== null || filters.state !== null || filters.city !== null) count++;
+    
+    // Event type
+    if (filters.eventType !== null) count++;
+    
+    // Custom date range
+    if (filters.startDate !== null || filters.endDate !== null) count++;
+    
+    // Team size
+    if (filters.teamSizeMin !== null || filters.teamSizeMax !== null) count++;
+    
+    // Participation mode
+    if (filters.participationMode !== null) count++;
+    
+    // Prize filter
+    if (filters.prizeFilter !== null) count++;
+    
+    // Theme filter
+    if (filters.themeFilter !== null && filters.themeFilter.length > 0) count++;
+    
+    // Registration status
+    if (filters.registrationStatus !== 'any') count++;
+    
+    return count;
+  };
+
+  // Get active filter tags to display
+  const getActiveFilterTags = () => {
+    const tags = [];
+    
+    // Location filters
+    if (filters.location !== 'any' || filters.country || filters.state || filters.city) {
+      const locationText = 
+        filters.city ? filters.city :
+        filters.state ? filters.state :
+        filters.country ? filters.country :
+        filters.location === 'in-person' ? 'In-person' : 'Online';
+      
+      tags.push({
+        icon: <MapPinIcon className="h-3.5 w-3.5 mr-1" />,
+        text: locationText
+      });
+    }
+    
+    // Date filters
+    if (filters.dateRange !== 'any' || filters.startDate || filters.endDate) {
+      let dateText = '';
+      
+      if (filters.startDate && filters.endDate) {
+        dateText = `${filters.startDate} to ${filters.endDate}`;
+      } else if (filters.dateRange === 'upcoming') {
+        dateText = 'Next 7 days';
+      } else if (filters.dateRange === 'this-month') {
+        dateText = 'This month';
+      } else if (filters.dateRange === 'next-month') {
+        dateText = 'Next month';
+      } else if (filters.dateRange === 'past') {
+        dateText = 'Past';
+      }
+      
+      tags.push({
+        icon: <CalendarIcon className="h-3.5 w-3.5 mr-1" />,
+        text: dateText
+      });
+    }
+    
+    // Team size filters
+    if (filters.teamSizeMin !== null || filters.teamSizeMax !== null) {
+      let teamText = 'Team size: ';
+      
+      if (filters.teamSizeMin !== null && filters.teamSizeMax !== null) {
+        teamText += `${filters.teamSizeMin}-${filters.teamSizeMax}`;
+      } else if (filters.teamSizeMin !== null) {
+        teamText += `Min ${filters.teamSizeMin}`;
+      } else if (filters.teamSizeMax !== null) {
+        teamText += `Max ${filters.teamSizeMax}`;
+      }
+      
+      tags.push({
+        icon: <UsersIcon className="h-3.5 w-3.5 mr-1" />,
+        text: teamText
+      });
+    }
+    
+    // Prize filter
+    if (filters.prizeFilter) {
+      tags.push({
+        icon: <AwardIcon className="h-3.5 w-3.5 mr-1" />,
+        text: filters.prizeFilter
+      });
+    }
+    
+    // Theme filters
+    if (filters.themeFilter && filters.themeFilter.length > 0) {
+      tags.push({
+        icon: <TagIcon className="h-3.5 w-3.5 mr-1" />,
+        text: `${filters.themeFilter.length} themes`
+      });
+    }
+    
+    return tags;
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 font-mono">
@@ -167,13 +287,34 @@ const HackathonListingPage = () => {
               </span>
               {isFiltersActive && (
                 <span className="bg-blue-700 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">
-                  {(filters.location !== 'any' ? 1 : 0) + 
-                   (filters.dateRange !== 'any' ? 1 : 0) + 
-                   (filters.technologies.length > 0 ? 1 : 0)}
+                  {countActiveFilterCategories()}
                 </span>
               )}
             </Link>
           </div>
+          
+          {/* Active filter tags */}
+          {isFiltersActive && getActiveFilterTags().length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-4">
+              {getActiveFilterTags().map((tag, index) => (
+                <div 
+                  key={index}
+                  className="bg-blue-100 text-blue-800 px-3 py-1 text-xs flex items-center rounded-full"
+                >
+                  {tag.icon}
+                  <span>{tag.text}</span>
+                </div>
+              ))}
+              
+              <Link 
+                to="/filters" 
+                state={{ filters }}
+                className="bg-blue-700 text-white px-3 py-1 text-xs flex items-center rounded-full hover:bg-blue-800 transition-colors"
+              >
+                + More Filters
+              </Link>
+            </div>
+          )}
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div className="bg-white p-4 border-2 border-blue-800">
