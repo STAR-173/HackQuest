@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { HackathonData } from "../types/hackathon";
 import L from "leaflet";
+import { getCachedCoordinates } from "../services/hackathonService";
 
 // Fix for default marker icons in react-leaflet
 // Need to import images directly for markers to work in production
@@ -34,25 +35,66 @@ interface HackathonWithCoordinates extends HackathonData {
 const MapView = ({
   hackathons
 }: MapViewProps) => {
-  // Filter out online hackathons and hackathons without location data for the map view
-  const inPersonHackathons = hackathons.filter(hackathon => 
-    !hackathon.is_online && hackathon.country);
+  const [hackathonsWithCoordinates, setHackathonsWithCoordinates] = useState<HackathonWithCoordinates[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [mapCenter, setMapCenter] = useState<[number, number]>([20, 0]);
 
-  // Get coordinates for each location (simplified approach - would ideally use a geocoding service)
-  const hackathonsWithCoordinates: HackathonWithCoordinates[] = inPersonHackathons.map(hackathon => {
-    // This is a very simplified approach to generating coordinates
-    // In a real application, you would use a geocoding service or store actual coordinates
-    const randomLat = Math.random() * 180 - 90;
-    const randomLng = Math.random() * 360 - 180;
-    
-    return {
-      ...hackathon,
-      coordinates: [randomLat, randomLng] as [number, number]
+  // Load coordinates for all hackathons
+  useEffect(() => {
+    const fetchCoordinates = async () => {
+      setIsLoading(true);
+      
+      // Filter out online hackathons and hackathons without location data
+      const inPersonHackathons = hackathons.filter(hackathon => 
+        !hackathon.is_online && (hackathon.country || hackathon.city || hackathon.state || hackathon.location)
+      );
+      
+      const withCoordinates: HackathonWithCoordinates[] = [];
+      
+      for (const hackathon of inPersonHackathons) {
+        try {
+          // Try to get coordinates from location data
+          let coordinates = await getCachedCoordinates(
+            hackathon.city || '', 
+            hackathon.state || '', 
+            hackathon.country || ''
+          );
+          
+          // If no coordinates found from city/state/country, try using the location field
+          if (!coordinates && hackathon.location) {
+            coordinates = await getCachedCoordinates('', '', hackathon.location);
+          }
+          
+          // If we found coordinates, add them to the array
+          if (coordinates) {
+            withCoordinates.push({
+              ...hackathon,
+              coordinates: [coordinates.lat, coordinates.lng]
+            });
+          }
+        } catch (error) {
+          console.error(`Error getting coordinates for ${hackathon.name}:`, error);
+        }
+      }
+      
+      // Set default center based on available hackathons
+      if (withCoordinates.length > 0) {
+        // Calculate average position as center
+        const sumLat = withCoordinates.reduce((sum, h) => sum + h.coordinates[0], 0);
+        const sumLng = withCoordinates.reduce((sum, h) => sum + h.coordinates[1], 0);
+        
+        setMapCenter([
+          sumLat / withCoordinates.length,
+          sumLng / withCoordinates.length
+        ]);
+      }
+      
+      setHackathonsWithCoordinates(withCoordinates);
+      setIsLoading(false);
     };
-  });
 
-  // Default center position
-  const defaultCenter: [number, number] = [20, 0]; // Roughly the center of the world map
+    fetchCoordinates();
+  }, [hackathons]);
   
   // Format date for display
   const formatDate = (dateString: string) => {
@@ -64,10 +106,26 @@ const MapView = ({
     });
   };
 
+  if (isLoading) {
+    return (
+      <div className="w-full h-[calc(100vh-350px)] border-4 border-blue-700 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700"></div>
+      </div>
+    );
+  }
+
+  if (hackathonsWithCoordinates.length === 0) {
+    return (
+      <div className="w-full h-[calc(100vh-350px)] border-4 border-blue-700 flex items-center justify-center">
+        <p className="text-blue-700 text-lg font-medium">No in-person hackathons with location data found.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full h-[calc(100vh-350px)] border-4 border-blue-700">
       <MapContainer 
-        center={defaultCenter}
+        center={mapCenter}
         zoom={2} 
         style={{
           height: "100%",

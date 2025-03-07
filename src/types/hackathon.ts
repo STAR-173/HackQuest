@@ -30,10 +30,23 @@ export interface HackathonData {
     logo: string;
     site: string;
     primary_color: string;
+    reg_starts_at: string;
+    reg_ends_at: string;
+    women_only: boolean;
   };
   prizes: Prize[];
   sponsor_tiers: SponsorTier[];
   status: string;
+  type: string;
+  team_min: number;
+  team_size: number; // Max team size
+  themes: Theme[];
+  apply_mode: string;
+}
+
+export interface Theme {
+  name: string;
+  uuid: string;
 }
 
 export interface Prize {
@@ -56,9 +69,49 @@ export interface Sponsor {
   uuid: string;
 }
 
+export interface GeoLocation {
+  lat: number;
+  lng: number;
+}
+
 export interface HackathonFilters {
+  // Basic filters
   searchTerm: string;
   location: 'any' | 'in-person' | 'online';
-  dateRange: 'any' | 'upcoming' | 'this-month' | 'next-month' | 'past';
+  dateRange: 'any' | 'upcoming' | 'this-month' | 'next-month' | 'past' | 'custom';
   technologies: string[];
+  
+  // Advanced location filters
+  country: string | null;
+  state: string | null;
+  city: string | null;
+  
+  // Event type filter
+  eventType: string | null;
+  
+  // Custom date range
+  startDate: string | null; // Format: YYYY-MM-DD
+  endDate: string | null;   // Format: YYYY-MM-DD
+  
+  // Team size filter
+  teamSizeMin: number | null;
+  teamSizeMax: number | null;
+  
+  // Participation mode
+  participationMode: 'any' | 'online' | 'offline' | 'hybrid' | null;
+  
+  // Prize filter
+  prizeFilter: string | null;
+  
+  // Theme filter
+  themeFilter: string[] | null;
+  
+  // Registration status
+  registrationStatus: 'open' | 'closed' | 'any';
+  registrationStartDate: string | null;
+  registrationEndDate: string | null;
+  
+  // Pagination
+  pageSize: number;
+  pageNumber: number;
 } 
